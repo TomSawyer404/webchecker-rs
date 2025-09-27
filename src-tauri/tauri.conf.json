@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "webchecker-rs",
+        "title": "网站存活批量探测器 - Developed by 佛子岭日夜加班有限公司",
         "width": 800,
         "height": 600
       }
@@ -24,12 +24,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "icon": ["icons/128x128.png", "icons/icon.ico"]
   }
 }
