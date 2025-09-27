@@ -20,9 +20,6 @@
           <span v-if="isExporting">🔄 导出中...</span>
           <span v-else>📊 导出XLSX</span>
         </button>
-
-
-
       </div>
     </div>
     
@@ -34,18 +31,53 @@
         <table class="results-table">
           <thead>
             <tr>
-              <th>原始输入</th>
-              <th>协议</th>
-              <th>Status Code</th>
-              <th>Title</th>
-              <th>Banner</th>
-              <th>Content Length</th>
-              <th>重定向URL</th>
+              <th @click="sortBy('original_input')" class="sortable-header">
+                原始输入
+                <span class="sort-indicator" v-if="sortField === 'original_input'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th @click="sortBy('protocol')" class="sortable-header">
+                协议
+                <span class="sort-indicator" v-if="sortField === 'protocol'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th @click="sortBy('status_code')" class="sortable-header">
+                Status Code
+                <span class="sort-indicator" v-if="sortField === 'status_code'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th @click="sortBy('title')" class="sortable-header">
+                Title
+                <span class="sort-indicator" v-if="sortField === 'title'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th @click="sortBy('banner')" class="sortable-header">
+                Banner
+                <span class="sort-indicator" v-if="sortField === 'banner'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th @click="sortBy('content_length')" class="sortable-header">
+                Content Length
+                <span class="sort-indicator" v-if="sortField === 'content_length'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
+              <th @click="sortBy('redirect_url')" class="sortable-header">
+                重定向URL
+                <span class="sort-indicator" v-if="sortField === 'redirect_url'">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr 
-              v-for="(result, index) in results" 
+              v-for="(result, index) in sortedResults" 
               :key="index"
               :class="getRowClass(result)"
             >
@@ -83,6 +115,8 @@ import { getProtocol } from '../utils/urlUtils.js';
 import * as XLSX from 'xlsx';
 
 const isExporting = ref(false);
+const sortField = ref('');
+const sortDirection = ref('asc');
 
 const props = defineProps({
   results: {
@@ -98,6 +132,69 @@ const props = defineProps({
     default: false
   }
 });
+
+// 计算排序后的结果
+const sortedResults = computed(() => {
+  if (!sortField.value) return props.results;
+  
+  return [...props.results].sort((a, b) => {
+    let aValue = getSortValue(a, sortField.value);
+    let bValue = getSortValue(b, sortField.value);
+    
+    // 处理空值
+    if (aValue === null || aValue === undefined) aValue = '';
+    if (bValue === null || bValue === undefined) bValue = '';
+    
+    // 数字类型排序
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection.value === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    
+    // 字符串类型排序
+    const aStr = String(aValue).toLowerCase();
+    const bStr = String(bValue).toLowerCase();
+    
+    if (sortDirection.value === 'asc') {
+      return aStr.localeCompare(bStr);
+    } else {
+      return bStr.localeCompare(aStr);
+    }
+  });
+});
+
+// 获取排序字段的值
+function getSortValue(result, field) {
+  switch (field) {
+    case 'protocol':
+      return getProtocol(result.original_url);
+    case 'original_input':
+      return result.original_input || '';
+    case 'status_code':
+      return result.status_code || 0;
+    case 'title':
+      return result.title || '';
+    case 'banner':
+      return result.banner || '';
+    case 'content_length':
+      return result.content_length || 0;
+    case 'redirect_url':
+      return result.redirect_url || '';
+    default:
+      return '';
+  }
+}
+
+// 排序函数
+function sortBy(field) {
+  if (sortField.value === field) {
+    // 切换排序方向
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    // 设置新的排序字段，默认升序
+    sortField.value = field;
+    sortDirection.value = 'asc';
+  }
+}
 
 const successCount = computed(() => 
   props.results.filter(r => r.status_code === 200).length
@@ -195,7 +292,6 @@ function exportToXLSX() {
     isExporting.value = false;
   }
 }
-
 </script>
 
 <style scoped>
@@ -319,6 +415,28 @@ function exportToXLSX() {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+/* 可排序表头样式 */
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+  position: relative;
+  padding-right: 25px !important;
+}
+
+.sortable-header:hover {
+  background-color: #e9ecef;
+}
+
+.sort-indicator {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: bold;
+  color: #007bff;
 }
 
 .results-table td {
