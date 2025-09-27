@@ -18,20 +18,7 @@ export function useWebChecker() {
     // 事件监听
     const { setupEventListeners, cleanupEventListeners } = useEventListeners();
 
-    // 设置事件监听器
-    // const setupListeners = () => {
-    //     setupEventListeners(
-    //         (result) => {
-    //             results.value.push(result);
-    //         },
-    //         () => {
-    //             completed.value = true;
-    //             isRunning.value = false;
-    //         }
-    //     );
-    // };
-
-    const setupListeners = async () => {  // 添加async
+    const setupListeners = async () => {
         try {
             await setupEventListeners(
                 (result) => {
@@ -47,8 +34,11 @@ export function useWebChecker() {
         }
     };
 
-
-
+    // 删除历史记录
+    function clearHistory() {
+        results.value = [];
+        completed.value = false;
+    }
 
     // 开始检查
     async function startCheck() {
@@ -98,6 +88,7 @@ export function useWebChecker() {
         // 方法
         startCheck,
         stopCheck,
-        setupListeners
+        setupListeners,
+        clearHistory
     };
 }

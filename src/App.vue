@@ -33,6 +33,7 @@
         :results="results"
         :is-running="isRunning"
         :completed="completed"
+        @clear-history="clearHistory"
       />
     </div>
   </div>
@@ -64,7 +65,8 @@ const {
   completed,
   startCheck,
   stopCheck,
-  setupListeners
+  setupListeners,
+  clearHistory
 } = useWebChecker();
 
 // 组件挂载时设置监听器

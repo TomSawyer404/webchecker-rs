@@ -10,16 +10,26 @@
           <span v-if="isRunning" class="progress-indicator">进行中...</span>
           <span v-else-if="completed" class="completed-indicator">已完成</span>
         </div>
-        <button 
-          v-if="results.length > 0 && !isRunning"
-          @click="exportToXLSX"
-          class="export-btn"
-          title="导出为XLSX格式"
-          :disabled="isExporting"
-        >
-          <span v-if="isExporting">🔄 导出中...</span>
-          <span v-else>📊 导出XLSX</span>
-        </button>
+        <div class="action-buttons">
+          <button 
+            v-if="results.length > 0 && !isRunning"
+            @click="exportToXLSX"
+            class="export-btn"
+            title="导出为XLSX格式"
+            :disabled="isExporting"
+          >
+            <span v-if="isExporting">🔄 导出中...</span>
+            <span v-else>📊 导出XLSX</span>
+          </button>
+          <button 
+            v-if="results.length > 0 && !isRunning"
+            @click="clearHistory"
+            class="clear-btn"
+            title="清除所有历史记录"
+          >
+            🗑️ 清空历史
+          </button>
+        </div>
       </div>
     </div>
     
@@ -132,6 +142,8 @@ const props = defineProps({
     default: false
   }
 });
+
+const emit = defineEmits(['clear-history']);
 
 // 计算排序后的结果
 const sortedResults = computed(() => {
@@ -292,6 +304,13 @@ function exportToXLSX() {
     isExporting.value = false;
   }
 }
+
+// 清除历史记录
+function clearHistory() {
+  if (confirm('⚠️ 确定要清除所有历史记录吗？此操作不可撤销！')) {
+    emit('clear-history');
+  }
+}
 </script>
 
 <style scoped>
@@ -321,6 +340,12 @@ function exportToXLSX() {
   gap: 15px;
   font-size: 14px;
   color: #6c757d;
+  align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
   align-items: center;
 }
 
@@ -370,6 +395,33 @@ function exportToXLSX() {
 .export-btn:active {
   transform: translateY(0);
   box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.clear-btn {
+  background: linear-gradient(135deg, #dc3545, #e83e8c);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+}
+
+.clear-btn:hover {
+  background: linear-gradient(135deg, #c82333, #d91a7a);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.clear-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
 }
 
 @keyframes pulse {
@@ -592,7 +644,13 @@ function exportToXLSX() {
     text-align: center;
   }
   
-  .export-btn {
+  .action-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .export-btn,
+  .clear-btn {
     width: 100%;
     justify-content: center;
   }
