@@ -1,0 +1,71 @@
+/* 全局样式 */
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  color: #0f0f0f;
+  background-color: #f6f6f6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* 应用容器样式 */
+.app-container {
+  display: flex;
+  height: 100vh;
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+}
+
+/* 左侧栏样式 */
+.left-sidebar {
+  width: 450px;
+  background-color: #f8f9fa;
+  border-right: 1px solid #e9ecef;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+/* 右侧栏样式 */
+.right-content {
+  flex: 1;
+  padding: 20px;
+  background-color: white;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f6f6f6;
+    background-color: #2f2f2f;
+  }
+
+  .left-sidebar {
+    background-color: #343a40;
+    border-right-color: #495057;
+  }
+
+  .right-content {
+    background-color: #212529;
+  }
+}

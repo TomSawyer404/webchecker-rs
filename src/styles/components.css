@@ -1,0 +1,103 @@
+/* 组件通用样式 - 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .input-section h3 {
+    color: #f8f9fa;
+    border-bottom-color: #007bff;
+  }
+
+  .targets-input,
+  .config-input,
+  .config-textarea {
+    background-color: #495057;
+    color: #f8f9fa;
+    border-color: #6c757d;
+  }
+
+  .input-hint {
+    color: #adb5bd;
+  }
+
+  .config-item label {
+    color: #f8f9fa;
+  }
+
+  .results-header h3 {
+    color: #f8f9fa;
+  }
+
+  .stats {
+    color: #adb5bd;
+  }
+
+  .results-table-container {
+    border-color: #495057;
+    background-color: #343a40;
+  }
+
+  .results-table th {
+    background-color: #495057;
+    color: #f8f9fa;
+    border-bottom-color: #6c757d;
+  }
+
+  .results-table td {
+    border-bottom-color: #495057;
+    color: #f8f9fa;
+  }
+
+  .results-table tbody tr:hover {
+    background-color: #495057;
+  }
+
+  .row-success {
+    border-left-color: #28a745;
+  }
+
+  .row-redirect {
+    border-left-color: #ffc107;
+  }
+
+  .row-error {
+    border-left-color: #dc3545;
+    background-color: #721c24;
+  }
+
+  .original-input-text {
+    color: #f8f9fa;
+  }
+
+  .error-tooltip {
+    color: #f8d7da;
+    background-color: rgba(220, 53, 69, 0.2);
+    border-left-color: #dc3545;
+  }
+
+  .protocol-http {
+    background-color: #0c5460;
+    color: #d1ecf1;
+  }
+
+  .protocol-https {
+    background-color: #155724;
+    color: #d4edda;
+  }
+
+  .status-success {
+    background-color: #155724;
+    color: #d4edda;
+  }
+
+  .status-warning {
+    background-color: #856404;
+    color: #fff3cd;
+  }
+
+  .status-error {
+    background-color: #721c24;
+    color: #f8d7da;
+  }
+
+  .redirect-cell {
+    color: #adb5bd;
+  }
+}
