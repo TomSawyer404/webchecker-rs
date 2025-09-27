@@ -35,7 +35,7 @@
               :class="getRowClass(result)"
             >
               <td class="original-input-cell">
-                <span class="original-input-text">{{ result.original_url }}</span>  <!-- 修改：直接显示原始输入，不做处理 -->
+                <span class="original-input-text">{{ result.original_input }}</span>  <!-- 修改：显示原始输入字段 -->
                 <div v-if="result.error" class="error-tooltip">
                   {{ result.error }}
                 </div>

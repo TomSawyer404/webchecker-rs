@@ -17,6 +17,7 @@ struct Config {
 #[derive(Debug, Serialize, Clone)]
 struct CheckResult {
     original_url: String,
+    original_input: String,
     status_code: u16,
     title: String,
     banner: String,
@@ -48,7 +49,12 @@ fn normalize_urls(input_url: &str) -> Vec<String> {
 
 // 异步URL检查命令
 #[tauri::command]
-async fn check_url(url: String, config: Config) -> Result<CheckResult, String> {
+// 修改函数签名，使用引用
+async fn check_url(
+    url: String,
+    original_input: &str, // 改为引用
+    config: Config,
+) -> Result<CheckResult, String> {
     // 创建HTTP客户端
     let client_builder = reqwest::Client::builder();
 
@@ -68,6 +74,7 @@ async fn check_url(url: String, config: Config) -> Result<CheckResult, String> {
         Err(e) => {
             return Ok(CheckResult {
                 original_url: url.clone(),
+                original_input: original_input.to_string(),
                 status_code: 0,
                 title: "客户端创建失败".to_string(),
                 banner: "".to_string(),
@@ -99,6 +106,7 @@ async fn check_url(url: String, config: Config) -> Result<CheckResult, String> {
         Err(e) => {
             return Ok(CheckResult {
                 original_url: url.clone(),
+                original_input: original_input.to_string(),
                 status_code: 0,
                 title: "请求失败".to_string(),
                 banner: "".to_string(),
@@ -129,6 +137,7 @@ async fn check_url(url: String, config: Config) -> Result<CheckResult, String> {
         Err(e) => {
             return Ok(CheckResult {
                 original_url: url.clone(),
+                original_input: original_input.to_string(),
                 status_code,
                 title: "内容读取失败".to_string(),
                 banner,
@@ -142,8 +151,10 @@ async fn check_url(url: String, config: Config) -> Result<CheckResult, String> {
     // 提取标题
     let title = extract_title(&content);
 
+    // 在所有使用original_input的地方都不需要.clone()
     Ok(CheckResult {
         original_url: url,
+        original_input: original_input.to_string(), // 只在最后转换为String
         status_code,
         title,
         banner,
@@ -217,8 +228,11 @@ async fn batch_check_urls(
                 headers: config.headers.clone(),
             };
 
+            // 克隆input_url以避免移动问题
+            let original_input = input_url.clone();
+
             let task = tokio::spawn(async move {
-                let result = check_url(url.clone(), config_clone).await;
+                let result = check_url(url.clone(), &original_input, config_clone).await;
 
                 // 发送结果到前端
                 match result {
@@ -228,6 +242,7 @@ async fn batch_check_urls(
                     Err(e) => {
                         let error_result = CheckResult {
                             original_url: url,
+                            original_input: original_input,
                             status_code: 0,
                             title: "检查失败".to_string(),
                             banner: "".to_string(),
