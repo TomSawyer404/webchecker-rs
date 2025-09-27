@@ -24,7 +24,7 @@ async function startCheck() {
   try {
     // 构建配置对象
     const configObj = {
-      "user-agent": userAgent.value,
+      "user_agent": userAgent.value,
       "cookie": cookie.value,
       "timeout": parseInt(timeout.value) || 30
     };
@@ -45,28 +45,16 @@ async function startCheck() {
     // 解析目标网址（按行分割）
     const urlList = targets.value.trim().split('\n').filter(url => url.trim());
     
-    // 调用后端接口（这里需要根据实际的后端命令修改）
-    for (const url of urlList) {
-      try {
-        const result = await invoke("check_url", { 
-          url: url.trim(),
-          config: configObj 
-        });
-        results.value.push(result);
-      } catch (error) {
-        results.value.push({
-          originalUrl: url.trim(),
-          statusCode: "ERROR",
-          title: "访问失败",
-          banner: "",
-          contentLength: 0,
-          redirectUrl: "",
-          error: error.toString()
-        });
-      }
-    }
+    // 调用后端批量检查接口
+    const batchResults = await invoke("batch_check_urls", { 
+      urls: urlList,
+      config: configObj 
+    });
+    
+    results.value = batchResults;
   } catch (error) {
     console.error("访问出错:", error);
+    alert("访问过程中出现错误: " + error.toString());
   } finally {
     isRunning.value = false;
   }
@@ -148,40 +136,62 @@ async function startCheck() {
     
     <!-- 右侧栏 -->
     <div class="right-content">
-      <h3>访问结果</h3>
+      <div class="results-header">
+        <h3>访问结果</h3>
+        <div class="stats" v-if="results.length > 0">
+          共 {{ results.length }} 个结果
+          <span class="success-count">{{ results.filter(r => r.status_code === 200).length }} 成功</span>
+          <span class="error-count">{{ results.filter(r => r.status_code >= 400 || r.error).length }} 失败</span>
+        </div>
+      </div>
       <div class="results-container">
         <div v-if="results.length === 0" class="no-results">
           暂无访问结果，点击"开始访问"按钮开始检查
         </div>
-        <div v-else class="results-list">
-          <div 
-            v-for="(result, index) in results" 
-            :key="index" 
-            class="result-item"
-            :class="{ error: result.statusCode === 'ERROR' }"
-          >
-            <div class="result-header">
-              <span class="url">{{ result.originalUrl }}</span>
-              <span class="status" :class="{
-                success: result.statusCode === 200,
-                warning: result.statusCode >= 300 && result.statusCode < 400,
-                error: result.statusCode >= 400 || result.statusCode === 'ERROR'
-              }">
-                {{ result.statusCode }}
-              </span>
-            </div>
-            <div class="result-details">
-              <div><strong>标题:</strong> {{ result.title || '无' }}</div>
-              <div><strong>Banner:</strong> {{ result.banner || '无' }}</div>
-              <div><strong>内容长度:</strong> {{ result.contentLength || 0 }}</div>
-              <div v-if="result.redirectUrl">
-                <strong>重定向:</strong> {{ result.redirectUrl }}
-              </div>
-              <div v-if="result.error" class="error-message">
-                <strong>错误:</strong> {{ result.error }}
-              </div>
-            </div>
-          </div>
+        <div v-else class="results-table-container">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>原始URL</th>
+                <th>Status Code</th>
+                <th>Title</th>
+                <th>Banner</th>
+                <th>Content Length</th>
+                <th>重定向URL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="(result, index) in results" 
+                :key="index"
+                :class="{
+                  'row-success': result.status_code === 200,
+                  'row-redirect': result.status_code >= 300 && result.status_code < 400,
+                  'row-error': result.status_code >= 400 || result.error
+                }"
+              >
+                <td class="url-cell">
+                  <span class="url-text">{{ result.original_url }}</span>
+                  <div v-if="result.error" class="error-tooltip">
+                    {{ result.error }}
+                  </div>
+                </td>
+                <td class="status-cell">
+                  <span class="status-badge" :class="{
+                    'status-success': result.status_code === 200,
+                    'status-warning': result.status_code >= 300 && result.status_code < 400,
+                    'status-error': result.status_code >= 400 || result.error
+                  }">
+                    {{ result.status_code || (result.error ? 'ERROR' : '未知') }}
+                  </span>
+                </td>
+                <td class="title-cell">{{ result.title || '无' }}</td>
+                <td class="banner-cell">{{ result.banner || '无' }}</td>
+                <td class="length-cell">{{ result.content_length || 0 }}</td>
+                <td class="redirect-cell">{{ result.redirect_url || '无' }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -300,18 +310,45 @@ async function startCheck() {
   padding: 20px;
   background-color: white;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.right-content h3 {
-  margin: 0 0 20px 0;
-  color: #495057;
-  font-size: 18px;
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
   border-bottom: 2px solid #007bff;
   padding-bottom: 8px;
 }
 
+.results-header h3 {
+  margin: 0;
+  color: #495057;
+  font-size: 18px;
+}
+
+.stats {
+  display: flex;
+  gap: 15px;
+  font-size: 14px;
+  color: #6c757d;
+}
+
+.success-count {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.error-count {
+  color: #dc3545;
+  font-weight: 600;
+}
+
 .results-container {
-  height: calc(100vh - 80px);
+  flex: 1;
+  overflow-y: auto;
 }
 
 .no-results {
@@ -322,92 +359,147 @@ async function startCheck() {
   font-size: 16px;
 }
 
-.results-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.result-item {
+/* 表格样式 */
+.results-table-container {
+  overflow-x: auto;
   border: 1px solid #e9ecef;
   border-radius: 8px;
-  padding: 15px;
+  background-color: white;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.results-table th {
   background-color: #f8f9fa;
-  transition: all 0.2s;
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #e9ecef;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.result-item:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+.results-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: top;
 }
 
-.result-item.error {
-  border-color: #dc3545;
+.results-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* 行状态样式 */
+.row-success {
+  border-left: 4px solid #28a745;
+}
+
+.row-redirect {
+  border-left: 4px solid #ffc107;
+}
+
+.row-error {
+  border-left: 4px solid #dc3545;
   background-color: #f8d7da;
 }
 
-.result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-  gap: 10px;
+/* 单元格样式 */
+.url-cell {
+  max-width: 250px;
+  position: relative;
 }
 
-.url {
-  font-weight: bold;
-  color: #495057;
+.url-text {
+  display: block;
   word-break: break-all;
-  flex: 1;
+  color: #495057;
+  font-weight: 500;
 }
 
-.status {
-  padding: 4px 12px;
-  border-radius: 20px;
+.error-tooltip {
+  font-size: 12px;
+  color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  border-left: 2px solid #dc3545;
+}
+
+.status-cell {
+  width: 100px;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
   font-size: 12px;
   font-weight: bold;
-  white-space: nowrap;
+  display: inline-block;
+  min-width: 50px;
+  text-align: center;
 }
 
-.status.success {
+.status-success {
   background-color: #d4edda;
   color: #155724;
 }
 
-.status.warning {
+.status-warning {
   background-color: #fff3cd;
   color: #856404;
 }
 
-.status.error {
+.status-error {
   background-color: #f8d7da;
   color: #721c24;
 }
 
-.result-details {
-  font-size: 14px;
+.title-cell {
+  max-width: 200px;
+  word-break: break-word;
+}
+
+.banner-cell {
+  max-width: 150px;
+  word-break: break-word;
+}
+
+.length-cell {
+  width: 100px;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+.redirect-cell {
+  max-width: 200px;
+  word-break: break-all;
   color: #6c757d;
-  line-height: 1.5;
 }
 
-.result-details div {
-  margin-bottom: 6px;
-  display: flex;
-  align-items: flex-start;
-}
-
-.result-details strong {
-  min-width: 80px;
-  color: #495057;
-}
-
-.error-message {
-  color: #dc3545;
-  font-weight: bold;
-  background-color: rgba(220, 53, 69, 0.1);
-  padding: 5px 8px;
-  border-radius: 4px;
-  margin-top: 5px;
+/* 响应式表格 */
+@media (max-width: 1200px) {
+  .results-table {
+    font-size: 13px;
+  }
+  
+  .results-table th,
+  .results-table td {
+    padding: 8px 10px;
+  }
+  
+  .url-cell,
+  .title-cell,
+  .banner-cell,
+  .redirect-cell {
+    max-width: 150px;
+  }
 }
 </style>
 
@@ -469,32 +561,74 @@ body {
     background-color: #212529;
   }
 
-  .right-content h3 {
-    color: #f8f9fa;
-    border-bottom-color: #007bff;
-  }
-
-  .result-item {
-    background-color: #343a40;
-    border-color: #495057;
+  .results-header h3 {
     color: #f8f9fa;
   }
 
-  .result-item.error {
-    background-color: #721c24;
-    border-color: #dc3545;
-  }
-
-  .url {
-    color: #f8f9fa;
-  }
-
-  .result-details {
+  .stats {
     color: #adb5bd;
   }
 
-  .result-details strong {
+  .results-table-container {
+    border-color: #495057;
+    background-color: #343a40;
+  }
+
+  .results-table th {
+    background-color: #495057;
     color: #f8f9fa;
+    border-bottom-color: #6c757d;
+  }
+
+  .results-table td {
+    border-bottom-color: #495057;
+    color: #f8f9fa;
+  }
+
+  .results-table tbody tr:hover {
+    background-color: #495057;
+  }
+
+  .row-success {
+    border-left-color: #28a745;
+  }
+
+  .row-redirect {
+    border-left-color: #ffc107;
+  }
+
+  .row-error {
+    border-left-color: #dc3545;
+    background-color: #721c24;
+  }
+
+  .url-text {
+    color: #f8f9fa;
+  }
+
+  .error-tooltip {
+    color: #f8d7da;
+    background-color: rgba(220, 53, 69, 0.2);
+    border-left-color: #dc3545;
+  }
+
+  .status-success {
+    background-color: #155724;
+    color: #d4edda;
+  }
+
+  .status-warning {
+    background-color: #856404;
+    color: #fff3cd;
+  }
+
+  .status-error {
+    background-color: #721c24;
+    color: #f8d7da;
+  }
+
+  .redirect-cell {
+    color: #adb5bd;
   }
 }
 </style>
