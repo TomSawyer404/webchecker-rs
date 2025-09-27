@@ -2,12 +2,27 @@
   <div class="results-container">
     <div class="results-header">
       <h3>访问结果</h3>
-      <div class="stats" v-if="results.length > 0">
-        共 {{ results.length }} 个结果
-        <span class="success-count">{{ successCount }} 成功</span>
-        <span class="error-count">{{ errorCount }} 失败</span>
-        <span v-if="isRunning" class="progress-indicator">进行中...</span>
-        <span v-else-if="completed" class="completed-indicator">已完成</span>
+      <div class="header-actions">
+        <div class="stats" v-if="results.length > 0">
+          共 {{ results.length }} 个结果
+          <span class="success-count">{{ successCount }} 成功</span>
+          <span class="error-count">{{ errorCount }} 失败</span>
+          <span v-if="isRunning" class="progress-indicator">进行中...</span>
+          <span v-else-if="completed" class="completed-indicator">已完成</span>
+        </div>
+        <button 
+          v-if="results.length > 0 && !isRunning"
+          @click="exportToXLSX"
+          class="export-btn"
+          title="导出为XLSX格式"
+          :disabled="isExporting"
+        >
+          <span v-if="isExporting">🔄 导出中...</span>
+          <span v-else>📊 导出XLSX</span>
+        </button>
+
+
+
       </div>
     </div>
     
@@ -35,7 +50,7 @@
               :class="getRowClass(result)"
             >
               <td class="original-input-cell">
-                <span class="original-input-text">{{ result.original_input }}</span>  <!-- 修改：显示原始输入字段 -->
+                <span class="original-input-text">{{ result.original_input }}</span>
                 <div v-if="result.error" class="error-tooltip">
                   {{ result.error }}
                 </div>
@@ -63,8 +78,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { getProtocol } from '../utils/urlUtils.js';  // 修改：移除getOriginalInput导入
+import { computed, ref } from 'vue';
+import { getProtocol } from '../utils/urlUtils.js';
+import * as XLSX from 'xlsx';
+
+const isExporting = ref(false);
 
 const props = defineProps({
   results: {
@@ -107,6 +125,77 @@ function getStatusClass(result) {
   if (result.status_code >= 400 || result.error) return 'status-error';
   return '';
 }
+
+function exportToXLSX() {
+  console.log('exportToXLSX called');
+  console.log('Results length:', props.results.length);
+  console.log('XLSX library:', XLSX);
+  
+  if (props.results.length === 0) {
+    console.log('No results to export');
+    return;
+  }
+
+  isExporting.value = true;
+
+  try {
+    // 准备Excel数据
+    const excelData = props.results.map(result => ({
+      '原始输入': result.original_input || '',
+      '协议': getProtocol(result.original_url) || '',
+      'Status Code': result.status_code || (result.error ? 'ERROR' : ''),
+      'Title': result.title || '',
+      'Banner': result.banner || '',
+      'Content Length': result.content_length || 0,
+      '重定向URL': result.redirect_url || '',
+      '错误信息': result.error || ''
+    }));
+
+    console.log('Excel data prepared:', excelData);
+
+    // 创建工作簿
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    console.log('Worksheet created:', ws);
+    
+    // 设置列宽
+    const colWidths = [
+      { wch: 30 }, // 原始输入
+      { wch: 10 }, // 协议
+      { wch: 15 }, // Status Code
+      { wch: 40 }, // Title
+      { wch: 30 }, // Banner
+      { wch: 15 }, // Content Length
+      { wch: 40 }, // 重定向URL
+      { wch: 30 }  // 错误信息
+    ];
+    ws['!cols'] = colWidths;
+
+    // 创建工作簿
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '访问结果');
+    console.log('Workbook created:', wb);
+
+    // 生成文件名（包含时间戳）
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `webchecker-results-${timestamp}.xlsx`;
+    console.log('Filename:', filename);
+
+    // 保存文件
+    XLSX.writeFile(wb, filename);
+    console.log('File saved successfully');
+
+    // 显示成功提示框
+    alert(`✅ 导出成功！\n\n文件已保存为：${filename}\n\n文件已自动下载到您的默认下载文件夹中。\n\n您可以在浏览器的下载记录中查看文件位置。`);
+    
+  } catch (error) {
+    console.error('Export error:', error);
+    alert('❌ 导出失败: ' + error.message);
+  } finally {
+    isExporting.value = false;
+  }
+}
+
 </script>
 
 <style scoped>
@@ -123,6 +212,12 @@ function getStatusClass(result) {
   margin: 0;
   color: #495057;
   font-size: 18px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .stats {
@@ -152,6 +247,33 @@ function getStatusClass(result) {
 .completed-indicator {
   color: #28a745;
   font-weight: 600;
+}
+
+.export-btn {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.export-btn:hover {
+  background: linear-gradient(135deg, #218838, #1e7e34);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.export-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
 }
 
 @keyframes pulse {
@@ -338,5 +460,36 @@ function getStatusClass(result) {
   .redirect-cell {
     max-width: 150px;
   }
+}
+
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .stats {
+    flex-direction: column;
+    gap: 5px;
+    text-align: center;
+  }
+  
+  .export-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.export-btn:disabled {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.export-btn:disabled:hover {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  transform: none;
+  box-shadow: none;
 }
 </style>
