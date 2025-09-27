@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use tauri::Emitter;
 
 // 配置结构体
 #[derive(Debug, Deserialize, Clone)]
@@ -13,7 +14,7 @@ struct Config {
 }
 
 // 访问结果结构体
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct CheckResult {
     original_url: String,
     status_code: u16,
@@ -22,6 +23,27 @@ struct CheckResult {
     content_length: usize,
     redirect_url: String,
     error: Option<String>,
+}
+
+// 解析和标准化URL
+fn normalize_urls(input_url: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    let url = input_url.trim();
+
+    if url.is_empty() {
+        return urls;
+    }
+
+    // 检查是否已经包含协议
+    if url.starts_with("http://") || url.starts_with("https://") {
+        urls.push(url.to_string());
+    } else {
+        // 如果没有协议，同时尝试http和https
+        urls.push(format!("http://{}", url));
+        urls.push(format!("https://{}", url));
+    }
+
+    urls
 }
 
 // 异步URL检查命令
@@ -172,55 +194,64 @@ fn extract_banner(response: &reqwest::Response) -> String {
     }
 }
 
-// 批量检查URL的命令
+// 批量检查URL的命令 - 实时返回结果
 #[tauri::command]
-async fn batch_check_urls(urls: Vec<String>, config: Config) -> Result<Vec<CheckResult>, String> {
-    let mut results = Vec::new();
+async fn batch_check_urls(
+    app_handle: tauri::AppHandle,
+    urls: Vec<String>,
+    config: Config,
+) -> Result<(), String> {
     let mut tasks = Vec::new();
 
     // 为每个URL创建异步任务
-    for url in urls {
-        let config_clone = Config {
-            user_agent: config.user_agent.clone(),
-            cookie: config.cookie.clone(),
-            timeout: config.timeout,
-            headers: config.headers.clone(),
-        };
+    for input_url in urls {
+        // 标准化URL（处理协议）
+        let normalized_urls = normalize_urls(&input_url);
 
-        let task = tokio::spawn(async move { check_url(url, config_clone).await });
-        tasks.push(task);
+        for url in normalized_urls {
+            let app_handle_clone = app_handle.clone();
+            let config_clone = Config {
+                user_agent: config.user_agent.clone(),
+                cookie: config.cookie.clone(),
+                timeout: config.timeout,
+                headers: config.headers.clone(),
+            };
+
+            let task = tokio::spawn(async move {
+                let result = check_url(url.clone(), config_clone).await;
+
+                // 发送结果到前端
+                match result {
+                    Ok(check_result) => {
+                        let _ = app_handle_clone.emit("check_result", check_result);
+                    }
+                    Err(e) => {
+                        let error_result = CheckResult {
+                            original_url: url,
+                            status_code: 0,
+                            title: "检查失败".to_string(),
+                            banner: "".to_string(),
+                            content_length: 0,
+                            redirect_url: "".to_string(),
+                            error: Some(e),
+                        };
+                        let _ = app_handle_clone.emit("check_result", error_result);
+                    }
+                }
+            });
+            tasks.push(task);
+        }
     }
 
     // 等待所有任务完成
     for task in tasks {
-        match task.await {
-            Ok(Ok(result)) => results.push(result),
-            Ok(Err(e)) => {
-                results.push(CheckResult {
-                    original_url: "未知".to_string(),
-                    status_code: 0,
-                    title: "任务执行失败".to_string(),
-                    banner: "".to_string(),
-                    content_length: 0,
-                    redirect_url: "".to_string(),
-                    error: Some(e),
-                });
-            }
-            Err(e) => {
-                results.push(CheckResult {
-                    original_url: "未知".to_string(),
-                    status_code: 0,
-                    title: "任务执行失败".to_string(),
-                    banner: "".to_string(),
-                    content_length: 0,
-                    redirect_url: "".to_string(),
-                    error: Some(format!("任务执行失败: {}", e)),
-                });
-            }
-        }
+        let _ = task.await;
     }
 
-    Ok(results)
+    // 发送完成事件
+    let _ = app_handle.emit("check_complete", "所有检查已完成");
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

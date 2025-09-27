@@ -1,6 +1,7 @@
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 // 响应式数据
 const targets = ref("");
@@ -10,6 +11,47 @@ const timeout = ref(30);
 const headers = ref("");
 const results = ref([]);
 const isRunning = ref(false);
+const completed = ref(false);
+
+// 事件监听器
+let unlistenResult = null;
+let unlistenComplete = null;
+
+// 设置事件监听
+async function setupEventListeners() {
+  // 监听检查结果事件
+  unlistenResult = await listen('check_result', (event) => {
+    const result = event.payload;
+    // 实时添加结果到列表
+    results.value.push(result);
+  });
+
+  // 监听检查完成事件
+  unlistenComplete = await listen('check_complete', () => {
+    completed.value = true;
+    isRunning.value = false;
+  });
+}
+
+// 清理事件监听
+function cleanupEventListeners() {
+  if (unlistenResult) {
+    unlistenResult();
+    unlistenResult = null;
+  }
+  if (unlistenComplete) {
+    unlistenComplete();
+    unlistenComplete = null;
+  }
+}
+
+onMounted(() => {
+  setupEventListeners();
+});
+
+onUnmounted(() => {
+  cleanupEventListeners();
+});
 
 // 开始访问函数
 async function startCheck() {
@@ -18,7 +60,9 @@ async function startCheck() {
     return;
   }
   
+  // 重置状态
   isRunning.value = true;
+  completed.value = false;
   results.value = [];
   
   try {
@@ -45,19 +89,37 @@ async function startCheck() {
     // 解析目标网址（按行分割）
     const urlList = targets.value.trim().split('\n').filter(url => url.trim());
     
-    // 调用后端批量检查接口
-    const batchResults = await invoke("batch_check_urls", { 
+    // 调用后端批量检查接口（现在返回空结果，通过事件接收实时结果）
+    await invoke("batch_check_urls", { 
       urls: urlList,
       config: configObj 
     });
     
-    results.value = batchResults;
   } catch (error) {
     console.error("访问出错:", error);
     alert("访问过程中出现错误: " + error.toString());
-  } finally {
     isRunning.value = false;
   }
+}
+
+// 获取协议类型
+function getProtocol(url) {
+  if (url.startsWith('https://')) return 'HTTPS';
+  if (url.startsWith('http://')) return 'HTTP';
+  return '未知';
+}
+
+// 获取原始输入（去除协议）
+function getOriginalInput(url) {
+  if (url.startsWith('https://')) return url.substring(8);
+  if (url.startsWith('http://')) return url.substring(7);
+  return url;
+}
+
+// 停止检查
+function stopCheck() {
+  isRunning.value = false;
+  completed.value = true;
 }
 </script>
 
@@ -69,10 +131,14 @@ async function startCheck() {
         <h3>目标网址</h3>
         <textarea 
           v-model="targets" 
-          placeholder="请输入待访问的网址，每行一个"
+          placeholder="请输入待访问的网址，每行一个（支持域名、URL、IP、IP:port等形式）"
           class="targets-input"
           rows="6"
+          :disabled="isRunning"
         ></textarea>
+        <div class="input-hint">
+          提示：如果没有指定协议（http/https），将同时尝试两种协议
+        </div>
       </div>
       
       <div class="input-section">
@@ -86,6 +152,7 @@ async function startCheck() {
               type="text" 
               placeholder="User-Agent字符串"
               class="config-input"
+              :disabled="isRunning"
             />
           </div>
           
@@ -97,6 +164,7 @@ async function startCheck() {
               placeholder="Cookie信息"
               class="config-textarea"
               rows="2"
+              :disabled="isRunning"
             ></textarea>
           </div>
           
@@ -109,6 +177,7 @@ async function startCheck() {
               min="1" 
               max="300"
               class="config-input"
+              :disabled="isRunning"
             />
           </div>
           
@@ -120,18 +189,28 @@ async function startCheck() {
               placeholder="自定义HTTP头部，每行一个，格式：HeaderName: HeaderValue"
               class="config-textarea"
               rows="3"
+              :disabled="isRunning"
             ></textarea>
           </div>
         </div>
       </div>
       
-      <button 
-        @click="startCheck" 
-        :disabled="isRunning"
-        class="start-button"
-      >
-        {{ isRunning ? '访问中...' : '开始访问' }}
-      </button>
+      <div class="button-group">
+        <button 
+          @click="startCheck" 
+          :disabled="isRunning"
+          class="start-button"
+        >
+          {{ isRunning ? '访问中...' : '开始访问' }}
+        </button>
+        <button 
+          v-if="isRunning"
+          @click="stopCheck"
+          class="stop-button"
+        >
+          停止
+        </button>
+      </div>
     </div>
     
     <!-- 右侧栏 -->
@@ -142,17 +221,20 @@ async function startCheck() {
           共 {{ results.length }} 个结果
           <span class="success-count">{{ results.filter(r => r.status_code === 200).length }} 成功</span>
           <span class="error-count">{{ results.filter(r => r.status_code >= 400 || r.error).length }} 失败</span>
+          <span v-if="isRunning" class="progress-indicator">进行中...</span>
+          <span v-else-if="completed" class="completed-indicator">已完成</span>
         </div>
       </div>
       <div class="results-container">
-        <div v-if="results.length === 0" class="no-results">
+        <div v-if="results.length === 0 && !isRunning" class="no-results">
           暂无访问结果，点击"开始访问"按钮开始检查
         </div>
         <div v-else class="results-table-container">
           <table class="results-table">
             <thead>
               <tr>
-                <th>原始URL</th>
+                <th>原始输入</th>
+                <th>协议</th>
                 <th>Status Code</th>
                 <th>Title</th>
                 <th>Banner</th>
@@ -170,11 +252,19 @@ async function startCheck() {
                   'row-error': result.status_code >= 400 || result.error
                 }"
               >
-                <td class="url-cell">
-                  <span class="url-text">{{ result.original_url }}</span>
+                <td class="original-input-cell">
+                  <span class="original-input-text">{{ getOriginalInput(result.original_url) }}</span>
                   <div v-if="result.error" class="error-tooltip">
                     {{ result.error }}
                   </div>
+                </td>
+                <td class="protocol-cell">
+                  <span class="protocol-badge" :class="{
+                    'protocol-http': getProtocol(result.original_url) === 'HTTP',
+                    'protocol-https': getProtocol(result.original_url) === 'HTTPS'
+                  }">
+                    {{ getProtocol(result.original_url) }}
+                  </span>
                 </td>
                 <td class="status-cell">
                   <span class="status-badge" :class="{
@@ -235,6 +325,13 @@ async function startCheck() {
   font-family: 'Courier New', monospace;
 }
 
+.input-hint {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 5px;
+  font-style: italic;
+}
+
 /* 配置表单样式 */
 .config-form {
   display: flex;
@@ -280,6 +377,12 @@ async function startCheck() {
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .start-button {
   padding: 12px 24px;
   background-color: #007bff;
@@ -290,7 +393,7 @@ async function startCheck() {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 10px;
+  flex: 1;
 }
 
 .start-button:hover:not(:disabled) {
@@ -302,6 +405,24 @@ async function startCheck() {
   background-color: #6c757d;
   cursor: not-allowed;
   transform: none;
+}
+
+.stop-button {
+  padding: 12px 24px;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.stop-button:hover {
+  background-color: #c82333;
+  transform: translateY(-1px);
 }
 
 /* 右侧栏样式 */
@@ -334,6 +455,7 @@ async function startCheck() {
   gap: 15px;
   font-size: 14px;
   color: #6c757d;
+  align-items: center;
 }
 
 .success-count {
@@ -344,6 +466,23 @@ async function startCheck() {
 .error-count {
   color: #dc3545;
   font-weight: 600;
+}
+
+.progress-indicator {
+  color: #007bff;
+  font-weight: 600;
+  animation: pulse 1.5s infinite;
+}
+
+.completed-indicator {
+  color: #28a745;
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 
 .results-container {
@@ -410,12 +549,12 @@ async function startCheck() {
 }
 
 /* 单元格样式 */
-.url-cell {
-  max-width: 250px;
+.original-input-cell {
+  max-width: 200px;
   position: relative;
 }
 
-.url-text {
+.original-input-text {
   display: block;
   word-break: break-all;
   color: #495057;
@@ -430,6 +569,30 @@ async function startCheck() {
   border-radius: 4px;
   margin-top: 4px;
   border-left: 2px solid #dc3545;
+}
+
+.protocol-cell {
+  width: 80px;
+}
+
+.protocol-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  display: inline-block;
+  min-width: 50px;
+  text-align: center;
+}
+
+.protocol-http {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.protocol-https {
+  background-color: #d4edda;
+  color: #155724;
 }
 
 .status-cell {
@@ -494,7 +657,7 @@ async function startCheck() {
     padding: 8px 10px;
   }
   
-  .url-cell,
+  .original-input-cell,
   .title-cell,
   .banner-cell,
   .redirect-cell {
@@ -553,6 +716,10 @@ body {
     border-color: #6c757d;
   }
 
+  .input-hint {
+    color: #adb5bd;
+  }
+
   .config-item label {
     color: #f8f9fa;
   }
@@ -602,7 +769,7 @@ body {
     background-color: #721c24;
   }
 
-  .url-text {
+  .original-input-text {
     color: #f8f9fa;
   }
 
@@ -610,6 +777,16 @@ body {
     color: #f8d7da;
     background-color: rgba(220, 53, 69, 0.2);
     border-left-color: #dc3545;
+  }
+
+  .protocol-http {
+    background-color: #0c5460;
+    color: #d1ecf1;
+  }
+
+  .protocol-https {
+    background-color: #155724;
+    color: #d4edda;
   }
 
   .status-success {
