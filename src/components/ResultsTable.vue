@@ -92,7 +92,11 @@
               :class="getRowClass(result)"
             >
               <td class="original-input-cell">
-                <span class="original-input-text">{{ result.original_input }}</span>
+                <span 
+                  class="original-input-text clickable-url"
+                  @dblclick="openUrl(result.original_input)"
+                  :title="'双击打开: ' + result.original_input"
+                >{{ result.original_input }}</span>
                 <div v-if="result.error" class="error-tooltip">
                   {{ result.error }}
                 </div>
@@ -110,7 +114,15 @@
               <td class="title-cell">{{ result.title || '无' }}</td>
               <td class="banner-cell">{{ result.banner || '无' }}</td>
               <td class="length-cell">{{ result.content_length || 0 }}</td>
-              <td class="redirect-cell">{{ result.redirect_url || '无' }}</td>
+              <td class="redirect-cell">
+                <span 
+                  v-if="result.redirect_url"
+                  class="redirect-url-text clickable-url"
+                  @dblclick="openUrl(result.redirect_url)"
+                  :title="'双击打开: ' + result.redirect_url"
+                >{{ result.redirect_url }}</span>
+                <span v-else>无</span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -144,6 +156,45 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['clear-history']);
+
+// 双击打开URL的函数
+function openUrl(url) {
+  if (!url) return;
+  
+  try {
+    // 确保URL有协议前缀
+    let fullUrl = url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      fullUrl = 'http://' + url;
+    }
+    
+    console.log('正在打开URL:', fullUrl);
+    
+    // 方法1: 使用更可靠的window.open方式
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.location.href = fullUrl;
+    } else {
+      // 方法2: 如果被阻止，使用a标签方式
+      const link = document.createElement('a');
+      link.href = fullUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+  } catch (error) {
+    console.error('打开URL失败:', error);
+    // 方法3: 最后尝试直接设置location
+    try {
+      window.location.href = fullUrl;
+    } catch (fallbackError) {
+      alert('❌ 无法打开URL。请检查浏览器是否阻止了弹出窗口，或尝试手动复制链接到浏览器中打开。');
+    }
+  }
+}
 
 // 计算排序后的结果
 const sortedResults = computed(() => {
@@ -513,6 +564,44 @@ function clearHistory() {
 .row-error {
   border-left: 4px solid #dc3545;
   background-color: #f8d7da;
+}
+
+/* 可点击URL样式 */
+.clickable-url {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px dotted #007bff;
+  color: #007bff;
+}
+
+.clickable-url:hover {
+  color: #0056b3;
+  border-bottom-color: #0056b3;
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+.clickable-url:active {
+  color: #004085;
+  border-bottom-color: #004085;
+  transform: translateY(1px);
+}
+
+/* 原始输入单元格样式调整 */
+.original-input-cell .clickable-url {
+  display: block;
+  word-break: break-all;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: -2px -4px;
+}
+
+/* 重定向URL单元格样式调整 */
+.redirect-cell .clickable-url {
+  display: block;
+  word-break: break-all;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: -2px -4px;
 }
 
 /* 单元格样式 */
