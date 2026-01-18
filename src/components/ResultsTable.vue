@@ -2,35 +2,6 @@
   <div class="results-container">
     <div class="results-header">
       <h3>访问结果</h3>
-      <div class="header-actions">
-        <div class="stats" v-if="results.length > 0">
-          共 {{ results.length }} 个结果
-          <span class="success-count">{{ successCount }} 成功</span>
-          <span class="error-count">{{ errorCount }} 失败</span>
-          <span v-if="isRunning" class="progress-indicator">进行中...</span>
-          <span v-else-if="completed" class="completed-indicator">已完成</span>
-        </div>
-        <div class="action-buttons">
-          <button 
-            v-if="results.length > 0 && !isRunning"
-            @click="exportToXLSX"
-            class="export-btn"
-            title="导出为XLSX格式"
-            :disabled="isExporting"
-          >
-            <span v-if="isExporting">🔄 导出中...</span>
-            <span v-else>📊 导出XLSX</span>
-          </button>
-          <button 
-            v-if="results.length > 0 && !isRunning"
-            @click="clearHistory"
-            class="clear-btn"
-            title="清除所有历史记录"
-          >
-            🗑️ 清空历史
-          </button>
-        </div>
-      </div>
     </div>
     
     <div class="results-content">
@@ -134,9 +105,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { getProtocol } from '../utils/urlUtils.js';
-import * as XLSX from 'xlsx';
 
-const isExporting = ref(false);
 const sortField = ref('');
 const sortDirection = ref('asc');
 
@@ -154,8 +123,6 @@ const props = defineProps({
     default: false
   }
 });
-
-const emit = defineEmits(['clear-history']);
 
 // 双击打开URL的函数
 function openUrl(url) {
@@ -259,14 +226,6 @@ function sortBy(field) {
   }
 }
 
-const successCount = computed(() => 
-  props.results.filter(r => r.status_code === 200).length
-);
-
-const errorCount = computed(() => 
-  props.results.filter(r => r.status_code >= 400 || r.error).length
-);
-
 function getRowClass(result) {
   if (result.status_code === 200) return 'row-success';
   if (result.status_code >= 300 && result.status_code < 400) return 'row-redirect';
@@ -284,82 +243,5 @@ function getStatusClass(result) {
   if (result.status_code >= 300 && result.status_code < 400) return 'status-warning';
   if (result.status_code >= 400 || result.error) return 'status-error';
   return '';
-}
-
-function exportToXLSX() {
-  console.log('exportToXLSX called');
-  console.log('Results length:', props.results.length);
-  console.log('XLSX library:', XLSX);
-  
-  if (props.results.length === 0) {
-    console.log('No results to export');
-    return;
-  }
-
-  isExporting.value = true;
-
-  try {
-    // 准备Excel数据
-    const excelData = props.results.map(result => ({
-      '原始输入': result.original_input || '',
-      '协议': getProtocol(result.original_url) || '',
-      'Status Code': result.status_code || (result.error ? 'ERROR' : ''),
-      'Title': result.title || '',
-      'Banner': result.banner || '',
-      'Content Length': result.content_length || 0,
-      '重定向URL': result.redirect_url || '',
-      '错误信息': result.error || ''
-    }));
-
-    console.log('Excel data prepared:', excelData);
-
-    // 创建工作簿
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    console.log('Worksheet created:', ws);
-    
-    // 设置列宽
-    const colWidths = [
-      { wch: 30 }, // 原始输入
-      { wch: 10 }, // 协议
-      { wch: 15 }, // Status Code
-      { wch: 40 }, // Title
-      { wch: 30 }, // Banner
-      { wch: 15 }, // Content Length
-      { wch: 40 }, // 重定向URL
-      { wch: 30 }  // 错误信息
-    ];
-    ws['!cols'] = colWidths;
-
-    // 创建工作簿
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '访问结果');
-    console.log('Workbook created:', wb);
-
-    // 生成文件名（包含时间戳）
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const filename = `webchecker-results-${timestamp}.xlsx`;
-    console.log('Filename:', filename);
-
-    // 保存文件
-    XLSX.writeFile(wb, filename);
-    console.log('File saved successfully');
-
-    // 显示成功提示框
-    alert(`✅ 导出成功！\n\n文件已保存为：${filename}\n\n文件已自动下载到您的默认下载文件夹中。\n\n您可以在浏览器的下载记录中查看文件位置。`);
-    
-  } catch (error) {
-    console.error('Export error:', error);
-    alert('❌ 导出失败: ' + error.message);
-  } finally {
-    isExporting.value = false;
-  }
-}
-
-// 清除历史记录
-function clearHistory() {
-  if (confirm('⚠️ 确定要清除所有历史记录吗？此操作不可撤销！')) {
-    emit('clear-history');
-  }
 }
 </script>

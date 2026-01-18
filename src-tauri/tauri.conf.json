@@ -12,13 +12,19 @@
   "app": {
     "windows": [
       {
-        "title": "网站存活批量探测器 - Developed by 佛子岭日夜加班有限公司",
+        "title": "网站存活批量探测器",
         "width": 800,
         "height": 600
       }
     ],
     "security": {
       "csp": null
+    }
+  },
+  "plugins": {
+    "dialog": null,
+    "fs": {
+      "requireLiteralLeadingDot": false
     }
   },
   "bundle": {
