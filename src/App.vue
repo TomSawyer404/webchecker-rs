@@ -52,6 +52,12 @@ import ResultsTable from './components/ResultsTable.vue';
 // 导入样式
 import './styles/main.css';
 import './styles/components.css';
+import './styles/UrlInput.css';
+import './styles/ConfigForm.css';
+import './styles/ControlButtons.css';
+import './styles/ResultsTable.css';
+
+
 
 // 使用组合式函数
 const {
