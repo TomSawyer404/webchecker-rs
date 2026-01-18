@@ -69,7 +69,8 @@
                   :title="'双击打开: ' + result.original_input"
                 >{{ result.original_input }}</span>
                 <div v-if="result.error" class="error-tooltip">
-                  {{ result.error }}
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-message">{{ formatErrorMessage(result.error) }}</span>
                 </div>
               </td>
               <td class="protocol-cell">
@@ -243,5 +244,43 @@ function getStatusClass(result) {
   if (result.status_code >= 300 && result.status_code < 400) return 'status-warning';
   if (result.status_code >= 400 || result.error) return 'status-error';
   return '';
+}
+
+// 格式化错误信息，使其更易读
+function formatErrorMessage(error) {
+  if (!error) return '';
+  
+  // 移除冗余的"请求失败:"前缀
+  let formatted = error.replace(/^请求失败:\s*/, '');
+  
+  // 针对常见的错误类型进行格式化
+  if (formatted.includes('请求超时')) {
+    return `⏰ ${formatted}`;
+  } else if (formatted.includes('连接失败')) {
+    return `🔌 ${formatted}`;
+  } else if (formatted.includes('URL格式错误')) {
+    return `🔗 ${formatted}`;
+  } else if (formatted.includes('HTTP状态错误')) {
+    return `📊 ${formatted}`;
+  } else if (formatted.includes('重定向错误')) {
+    return `🔄 ${formatted}`;
+  } else if (formatted.includes('响应体错误')) {
+    return `📄 ${formatted}`;
+  } else if (formatted.includes('解码错误')) {
+    return `🔍 ${formatted}`;
+  } else if (formatted.includes('协议升级错误')) {
+    return `🔄 ${formatted}`;
+  } else if (formatted.includes('请求构建错误')) {
+    return `🔧 ${formatted}`;
+  } else if (formatted.includes('网络请求失败')) {
+    return `🌐 ${formatted}`;
+  } else if (formatted.includes('客户端创建失败')) {
+    return `⚙️ ${formatted}`;
+  } else if (formatted.includes('内容读取失败')) {
+    return `📖 ${formatted}`;
+  }
+  
+  // 默认情况，添加通用图标
+  return `❌ ${formatted}`;
 }
 </script>

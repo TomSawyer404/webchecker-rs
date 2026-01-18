@@ -104,6 +104,30 @@ async fn check_url(
     let response = match request_builder.send().await {
         Ok(resp) => resp,
         Err(e) => {
+            // 提供更详细的错误信息
+            let detailed_error = if e.is_timeout() {
+                format!("请求超时: 服务器在 {} 秒内未响应", timeout_secs)
+            } else if e.is_connect() {
+                format!("连接失败: 请检查网络连接或服务器地址")
+            } else if e.is_status() {
+                // 对于状态错误，我们可以尝试获取状态码
+                if let Some(status) = e.status() {
+                    format!("HTTP状态错误: 服务器返回状态码 {}", status.as_u16())
+                } else {
+                    format!("HTTP状态错误: 服务器返回错误状态")
+                }
+            } else if e.is_decode() {
+                format!("解码错误: 无法解码服务器响应")
+            } else if e.is_redirect() {
+                format!("重定向错误: 重定向过程中出现问题")
+            } else if e.is_body() {
+                format!("响应体错误: 读取服务器响应时出现问题")
+            } else if e.is_request() {
+                format!("请求构建错误: 无法构建HTTP请求")
+            } else {
+                format!("网络请求失败: {}", e)
+            };
+
             return Ok(CheckResult {
                 original_url: url.clone(),
                 original_input: original_input.to_string(),
@@ -112,7 +136,7 @@ async fn check_url(
                 banner: "".to_string(),
                 content_length: 0,
                 redirect_url: "".to_string(),
-                error: Some(format!("请求失败: {}", e)),
+                error: Some(detailed_error),
             });
         }
     };
